@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -151,9 +152,22 @@ func pollApi(bot *tele.Bot, qChan chan bool, wg *sync.WaitGroup) {
 
 			var resStr strings.Builder
 
-			for _, value := range resData.Data {
+			keys := make([]string, 0, len(resData.Data))
+			for key := range resData.Data {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+
+			for _, key := range keys {
+				value := resData.Data[key]
 				resStr.WriteString(
-					buildPriceString(value.Name, value.Quote["USD"].Price, value.Quote["USD"].PercentChange1h, value.Quote["USD"].PercentChange24h, value.Quote["USD"].PercentChange7d),
+					buildPriceString(
+						value.Name,
+						value.Quote["USD"].Price,
+						value.Quote["USD"].PercentChange1h,
+						value.Quote["USD"].PercentChange24h,
+						value.Quote["USD"].PercentChange7d,
+					),
 				)
 			}
 			bot.Send(chat, resStr.String())
