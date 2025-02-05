@@ -1,0 +1,3 @@
+# cryptobot
+
+coinmarket API wrapper
