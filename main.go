@@ -86,19 +86,19 @@ func buildPriceString(token string, price float64, change1h float64, change24h f
 	var priceStr strings.Builder
 	priceStr.WriteString(fmt.Sprintf("%s: %.2f\n", token, roundToPrecision(price, 2)))
 	if change1h > 0 {
-		priceStr.WriteString(fmt.Sprintf("🟩 1h:\n-- %.2f%%\n", roundToPrecision(change1h, 2)))
+		priceStr.WriteString(fmt.Sprintf("🟩 1h:\n%.2f%%\n", roundToPrecision(change1h, 2)))
 	} else {
-		priceStr.WriteString(fmt.Sprintf("🟥 1h:\n-- %.2f%%\n", roundToPrecision(change1h, 2)))
+		priceStr.WriteString(fmt.Sprintf("🟥 1h:\n%.2f%%\n", roundToPrecision(change1h, 2)))
 	}
 	if change24h > 0 {
-		priceStr.WriteString(fmt.Sprintf("🟩 24h:\n-- %.2f%%\n", roundToPrecision(change24h, 2)))
+		priceStr.WriteString(fmt.Sprintf("🟩 24h:\n%.2f%%\n", roundToPrecision(change24h, 2)))
 	} else {
-		priceStr.WriteString(fmt.Sprintf("🟥 24h:\n-- %.2f%%\n", roundToPrecision(change24h, 2)))
+		priceStr.WriteString(fmt.Sprintf("🟥 24h:\n%.2f%%\n", roundToPrecision(change24h, 2)))
 	}
 	if change7d > 0 {
-		priceStr.WriteString(fmt.Sprintf("🟩 7d:\n-- %.2f%%\n", roundToPrecision(change7d, 2)))
+		priceStr.WriteString(fmt.Sprintf("🟩 7d:\n%.2f%%\n", roundToPrecision(change7d, 2)))
 	} else {
-		priceStr.WriteString(fmt.Sprintf("🟥 7d:\n-- %.2f%%\n", roundToPrecision(change7d, 2)))
+		priceStr.WriteString(fmt.Sprintf("🟥 7d:\n%.2f%%\n", roundToPrecision(change7d, 2)))
 	}
 	priceStr.WriteString("\n")
 	return priceStr.String()
