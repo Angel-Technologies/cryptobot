@@ -169,7 +169,7 @@ func fetchPoints(symbolName string, fname string) plotter.XYs {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	const max = 100
+	const max = 45
 	contents := []string{}
 
 	for scanner.Scan() {
