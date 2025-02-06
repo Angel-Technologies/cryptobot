@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"math"
 	"net/http"
 	"net/url"
@@ -12,6 +14,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
 
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
@@ -104,6 +110,46 @@ func buildPriceString(token string, price float64, change1h float64, change24h f
 	return priceStr.String()
 }
 
+func fetchPoints(symbolName string, fname string) plotter.XYs {
+	file, err := os.Open(fname)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	const max = 100
+	contents := []string{}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(contents) >= max {
+			contents = contents[1:]
+		}
+		contents = append(contents, line)
+	}
+	pts := make(plotter.XYs, len(contents))
+	for i := range pts {
+		data := strings.Split(contents[i], "|")
+		price, err := strconv.ParseFloat(data[1], 10)
+		if err != nil {
+			panic(err)
+		}
+		pts[i].X = float64(i)
+		pts[i].Y = float64(price)
+	}
+
+	// overwrite old contents with last 20 lines
+	writer := bufio.NewWriter(file)
+	for _, line := range contents {
+		_, err := writer.WriteString(line + "\n")
+		if err != nil {
+			panic(err)
+		}
+	}
+	return pts
+}
+
 func pollApi(bot *tele.Bot, qChan chan bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 	chanId, err := strconv.ParseInt(os.Getenv("CHANNEL_ID"), 10, 64)
@@ -150,8 +196,6 @@ func pollApi(bot *tele.Bot, qChan chan bool, wg *sync.WaitGroup) {
 				return
 			}
 
-			var resStr strings.Builder
-
 			keys := make([]string, 0, len(resData.Data))
 			for key := range resData.Data {
 				keys = append(keys, key)
@@ -160,18 +204,50 @@ func pollApi(bot *tele.Bot, qChan chan bool, wg *sync.WaitGroup) {
 
 			for _, key := range keys {
 				value := resData.Data[key]
-				resStr.WriteString(
-					buildPriceString(
-						value.Name,
-						value.Quote["USD"].Price,
-						value.Quote["USD"].PercentChange1h,
-						value.Quote["USD"].PercentChange24h,
-						value.Quote["USD"].PercentChange7d,
-					),
+				fname := fmt.Sprintf(".data.%s", key)
+
+				f, err := os.OpenFile(fname, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+				if err != nil {
+					panic(err)
+				}
+				defer f.Close()
+
+				p := plot.New()
+
+				p.Title.Text = value.Name
+				p.X.Label.Text = "Time"
+				p.Y.Label.Text = "Price, USD"
+
+				t := time.Now()
+				tFmt := t.Format("2006-01-02 15:00:00")
+
+				lastPrice := fmt.Sprintf("%s|%.2f\n", tFmt, value.Quote["USD"].Price)
+				if _, err = f.WriteString(lastPrice); err != nil {
+					panic(err)
+				}
+				resStr := buildPriceString(
+					value.Name,
+					value.Quote["USD"].Price,
+					value.Quote["USD"].PercentChange1h,
+					value.Quote["USD"].PercentChange24h,
+					value.Quote["USD"].PercentChange7d,
 				)
+
+				line, points, err := plotter.NewLinePoints(fetchPoints(value.Name, fname))
+				p.Add(line, points)
+
+				line.Color = color.RGBA{G: 255, A: 255}
+
+				plotName := fmt.Sprintf("%s.png", key)
+				if err := p.Save(6*vg.Inch, 6*vg.Inch, plotName); err != nil {
+					log.Fatal(err)
+					return
+				}
+				plotPhoto := &tele.Photo{File: tele.FromDisk(plotName), Caption: resStr}
+				bot.Send(chat, plotPhoto)
 			}
-			bot.Send(chat, resStr.String())
-			time.Sleep(time.Minute * 5)
+
+			time.Sleep(time.Minute * 15)
 		}
 	}
 }

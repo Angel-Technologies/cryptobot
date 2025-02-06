@@ -7,4 +7,4 @@ Coinmarket API wrapper
   - Bot token: Your Telegram Bot API token
   - Channel ID: Your Telegram channel ID (All Telegram channel IDs start with '-100')
 
-API is polled every 5 minutes.
+API is polled every 15 minutes.
