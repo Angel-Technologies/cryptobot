@@ -29,6 +29,57 @@ const eth = "1027"
 const sol = "5426"
 const pip = "34625"
 
+type CustomTimeTicks struct{}
+
+func (CustomTimeTicks) Ticks(xmin, xmax float64) []plot.Tick {
+	var ticks []plot.Tick
+
+	rangeSize := xmax - xmin
+	xorder := int(math.Floor(math.Log10(rangeSize)+0.5)) - 1
+	format := ".0f"
+	if xorder < 0 {
+		format = fmt.Sprintf(".%df", -xorder)
+	}
+
+	xstep := math.Pow10(xorder)
+
+	switch {
+	case xstep >= 4*3600: // hours
+		xstep = 3600.0 * float64((int(xstep) / 3600))
+	case xstep >= 4*600: // 10 minutes
+		xstep = 600.0 * float64((int(xstep) / 600))
+	case xstep >= 4*60: // minutes
+		xstep = 60.0 * float64((int(xstep) / 60))
+	case xstep >= 40: // 10 seconds
+		xstep = 10.0 * float64((int(xstep) / 10))
+	case xstep >= 4: // seconds
+		xstep = 1
+	default:
+		xstep = math.Pow10(xorder)
+	}
+
+	if (xmax-xmin)/xstep > 20 {
+		xstep *= 5
+	}
+
+	xoffset := float64(int(xmin/xstep)) * xstep
+
+	for x := xoffset; x <= xmax; x += xstep {
+		label := fmt.Sprintf("%"+format, x)
+		ticks = append(ticks, plot.Tick{Value: x, Label: label})
+	}
+
+	xsub := xstep / 5
+	for x := xoffset - xsub; x >= xmin; x -= xsub {
+		ticks = append(ticks, plot.Tick{Value: x, Label: ""})
+	}
+	for x := xoffset + xsub; x <= xmax; x += xsub {
+		ticks = append(ticks, plot.Tick{Value: x, Label: ""})
+	}
+
+	return ticks
+}
+
 type Status struct {
 	Timestamp    string  `json:"timestamp"`
 	ErrorCode    int     `json:"error_code"`
@@ -131,7 +182,7 @@ func fetchPoints(symbolName string, fname string) plotter.XYs {
 	pts := make(plotter.XYs, len(contents))
 	for i := range pts {
 		data := strings.Split(contents[i], "|")
-		price, err := strconv.ParseFloat(data[1], 10)
+		price, err := strconv.ParseFloat(data[1], 64)
 		if err != nil {
 			panic(err)
 		}
@@ -139,7 +190,7 @@ func fetchPoints(symbolName string, fname string) plotter.XYs {
 		pts[i].Y = float64(price)
 	}
 
-	// overwrite old contents with last 20 lines
+	// overwrite old contents with last MAX lines
 	writer := bufio.NewWriter(file)
 	for _, line := range contents {
 		_, err := writer.WriteString(line + "\n")
@@ -219,7 +270,7 @@ func pollApi(bot *tele.Bot, qChan chan bool, wg *sync.WaitGroup) {
 				p.Y.Label.Text = "Price, USD"
 
 				t := time.Now()
-				tFmt := t.Format("2006-01-02 15:00:00")
+				tFmt := t.Format("2006-01-02 15:04:05")
 
 				lastPrice := fmt.Sprintf("%s|%.2f\n", tFmt, value.Quote["USD"].Price)
 				if _, err = f.WriteString(lastPrice); err != nil {
@@ -233,13 +284,15 @@ func pollApi(bot *tele.Bot, qChan chan bool, wg *sync.WaitGroup) {
 					value.Quote["USD"].PercentChange7d,
 				)
 
+				p.Y.Tick.Marker = CustomTimeTicks{}
+
 				line, points, err := plotter.NewLinePoints(fetchPoints(value.Name, fname))
 				p.Add(line, points)
 
 				line.Color = color.RGBA{G: 255, A: 255}
 
 				plotName := fmt.Sprintf("%s.png", key)
-				if err := p.Save(6*vg.Inch, 6*vg.Inch, plotName); err != nil {
+				if err := p.Save(6*vg.Inch, 4*vg.Inch, plotName); err != nil {
 					log.Fatal(err)
 					return
 				}
